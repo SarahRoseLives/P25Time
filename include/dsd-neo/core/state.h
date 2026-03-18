@@ -250,10 +250,24 @@ struct dsd_state {
     double last_cc_sync_time_m;
     double last_vc_sync_time_m;
     double p25_last_vc_tune_time_m;
+    uint64_t p25_time_epoch_ns;
+    uint64_t p25_time_monotonic_ns;
     time_t
         last_active_time; //time the a 'call grant' was received, used to clear the active_channel strings after x seconds
     time_t last_t3_tune_time;   // last time a DMR T3 grant was received (wall clock)
     double last_t3_tune_time_m; // same as above, monotonic seconds
+    int16_t p25_time_local_offset_minutes;
+    uint16_t p25_time_microslots;
+    uint16_t p25_time_year;
+    uint8_t p25_time_month;
+    uint8_t p25_time_day;
+    uint8_t p25_time_hour;
+    uint8_t p25_time_minute;
+    uint8_t p25_time_valid;
+    uint8_t p25_time_system_unlocked;
+    uint8_t p25_time_microslot_rollover_unlocked;
+    uint8_t p25_time_lto_valid;
+    uint8_t p25_time_leap_second_correction;
     // DMR: rate-limit for single-fragment SLCO logging per slot
     time_t slco_sfrag_last[2];
     unsigned long long int m17_dst;

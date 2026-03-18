@@ -38,6 +38,7 @@ typedef enum { LOG_LEVEL_ERROR = 0, LOG_LEVEL_WARN = 1, LOG_LEVEL_INFO = 2, LOG_
 extern "C" {
 #endif
 void dsd_neo_log_write(dsd_neo_log_level_t level, const char* format, ...);
+void dsd_neo_log_set_level(dsd_neo_log_level_t level);
 #ifdef __cplusplus
 }
 #endif

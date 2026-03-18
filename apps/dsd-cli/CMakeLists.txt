@@ -1,6 +1,7 @@
 add_executable(dsd-neo)
 
 target_sources(dsd-neo PRIVATE main.c)
+set_target_properties(dsd-neo PROPERTIES OUTPUT_NAME P25Time)
 
 # Link against modular libraries
 target_link_libraries(dsd-neo PRIVATE
@@ -57,11 +58,11 @@ find_program(HELP2MAN_FOUND help2man)
 if (HELP2MAN_FOUND)
     add_custom_command(TARGET dsd-neo POST_BUILD
         COMMAND help2man
-        ARGS -n "Digital Speech Decoder"
+        ARGS -n "P25 control-channel network time source"
             --version-string=${GIT_TAG}
-            -o ${CMAKE_CURRENT_BINARY_DIR}/dsd-neo.1
+            -o ${CMAKE_CURRENT_BINARY_DIR}/P25Time.1
             --no-info
             $<TARGET_FILE:dsd-neo>
     )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/dsd-neo.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/P25Time.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 endif()

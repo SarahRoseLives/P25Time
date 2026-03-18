@@ -68,14 +68,14 @@ initOpts(dsd_opts* opts) {
     opts->show_p25_callsign_decode = 0; // hide P25 callsign decode by default (many false positives)
     opts->show_channels = 0;            // hide Channels section by default
     opts->symboltiming = 0;
-    opts->verbose = 2;
+    opts->verbose = 0;
     opts->p25enc = 0;
     opts->p25lc = 0;
     opts->p25status = 0;
     opts->p25tg = 0;
     opts->scoperate = 15;
     snprintf(opts->audio_in_dev, sizeof opts->audio_in_dev, "%s", "pulse");
-    snprintf(opts->audio_out_dev, sizeof opts->audio_out_dev, "%s", "pulse");
+    snprintf(opts->audio_out_dev, sizeof opts->audio_out_dev, "%s", "null");
     opts->audio_in_fd = -1;
     opts->audio_out_fd = -1;
 
@@ -92,7 +92,7 @@ initOpts(dsd_opts* opts) {
     opts->audio_gain = 0;
     opts->audio_gainR = 0;
     opts->audio_gainA = 50.0f; //scale of 1 - 100
-    opts->audio_out = 1;
+    opts->audio_out = 0;
     opts->wav_out_file[0] = 0;
     opts->wav_out_fileR[0] = 0;
     opts->wav_out_file_raw[0] = 0;
@@ -132,16 +132,16 @@ initOpts(dsd_opts* opts) {
     opts->serial_fd = -1;
     snprintf(opts->serial_dev, sizeof opts->serial_dev, "%s", "/dev/ttyUSB0");
     opts->resume = 0;
-    opts->frame_dstar = 1;
-    opts->frame_x2tdma = 1;
+    opts->frame_dstar = 0;
+    opts->frame_x2tdma = 0;
     opts->frame_p25p1 = 1;
-    opts->frame_p25p2 = 1;
+    opts->frame_p25p2 = 0;
     opts->frame_nxdn48 = 0;
     opts->frame_nxdn96 = 0;
-    opts->frame_dmr = 1;
+    opts->frame_dmr = 0;
     opts->frame_dpmr = 0;
     opts->frame_provoice = 0;
-    opts->frame_ysf = 1;
+    opts->frame_ysf = 0;
     opts->frame_m17 = 0;
     opts->mod_c4fm = 1;
     opts->mod_qpsk = 0;
@@ -214,7 +214,7 @@ initOpts(dsd_opts* opts) {
     opts->dmr_crc_relaxed_default = 0;
 
     opts->audio_in_type = AUDIO_IN_PULSE;
-    opts->audio_out_type = 0;
+    opts->audio_out_type = 1;
 
     opts->lrrp_file_output = 0;
 
@@ -257,6 +257,10 @@ initOpts(dsd_opts* opts) {
     opts->rtltcp_portno = 1234;
     snprintf(opts->rtltcp_hostname, sizeof opts->rtltcp_hostname, "%s", "127.0.0.1");
     opts->rtltcp_autotune = 0; // default off; enable via CLI --rtltcp-autotune or env
+    opts->ntp_enable = 1;
+    opts->ntp_portno = 123;
+    opts->p25_time_mode = 1;
+    snprintf(opts->ntp_bindaddr, sizeof opts->ntp_bindaddr, "%s", "0.0.0.0");
 
     // UDP direct input defaults
     opts->udp_in_sockfd = DSD_INVALID_SOCKET;
@@ -819,6 +823,20 @@ initState(dsd_state* state) {
     state->last_active_time = time(NULL);
     state->last_t3_tune_time = time(NULL);
     state->is_con_plus = 0;
+    state->p25_time_epoch_ns = 0;
+    state->p25_time_monotonic_ns = 0;
+    state->p25_time_local_offset_minutes = 0;
+    state->p25_time_microslots = 0;
+    state->p25_time_year = 0;
+    state->p25_time_month = 0;
+    state->p25_time_day = 0;
+    state->p25_time_hour = 0;
+    state->p25_time_minute = 0;
+    state->p25_time_valid = 0;
+    state->p25_time_system_unlocked = 0;
+    state->p25_time_microslot_rollover_unlocked = 0;
+    state->p25_time_lto_valid = 0;
+    state->p25_time_leap_second_correction = 0;
 
     //dmr trunking/ncurses stuff
     state->dmr_rest_channel = -1; //init on -1

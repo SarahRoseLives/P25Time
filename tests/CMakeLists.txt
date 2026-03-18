@@ -452,6 +452,11 @@ target_include_directories(dsd-neo_test_runtime_p25_optional_hooks PRIVATE ${PRO
 target_link_libraries(dsd-neo_test_runtime_p25_optional_hooks PRIVATE dsd-neo_runtime)
 add_test(NAME RUNTIME_P25_OPTIONAL_HOOKS COMMAND dsd-neo_test_runtime_p25_optional_hooks)
 
+add_executable(dsd-neo_test_runtime_p25_time_ntp runtime/test_runtime_p25_time_ntp.c)
+target_include_directories(dsd-neo_test_runtime_p25_time_ntp PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(dsd-neo_test_runtime_p25_time_ntp PRIVATE dsd-neo_runtime)
+add_test(NAME RUNTIME_P25_TIME_NTP COMMAND dsd-neo_test_runtime_p25_time_ntp)
+
 add_executable(dsd-neo_test_runtime_shutdown runtime/test_runtime_shutdown.c)
 target_include_directories(dsd-neo_test_runtime_shutdown PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(dsd-neo_test_runtime_shutdown PRIVATE dsd-neo_core dsd-neo_test_support)

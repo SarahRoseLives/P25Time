@@ -17,6 +17,8 @@
 #include <dsd-neo/runtime/log.h>
 #include <dsd-neo/runtime/unicode.h>
 
+static dsd_neo_log_level_t g_runtime_log_level = DSD_NEO_LOG_LEVEL;
+
 /**
  * @brief Write a formatted log message to the logging sink.
  *
@@ -28,10 +30,21 @@
  * @param ...    Variadic arguments corresponding to `format`.
  */
 void
-dsd_neo_log_write(dsd_neo_log_level_t level, const char* format, ...) {
-    (void)level; /* Currently unused, but available for future runtime gating */
+dsd_neo_log_set_level(dsd_neo_log_level_t level) {
+    g_runtime_log_level = level;
+}
 
+static dsd_neo_log_level_t
+dsd_neo_log_get_level(void) {
+    return g_runtime_log_level;
+}
+
+void
+dsd_neo_log_write(dsd_neo_log_level_t level, const char* format, ...) {
     if (format == nullptr) {
+        return;
+    }
+    if (level > dsd_neo_log_get_level()) {
         return;
     }
 

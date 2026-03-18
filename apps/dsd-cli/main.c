@@ -31,15 +31,26 @@
 #include <dsd-neo/protocol/provoice/provoice_const.h>
 #include <dsd-neo/protocol/x2tdma/x2tdma_const.h>
 #include <dsd-neo/runtime/bootstrap.h>
+#include <dsd-neo/runtime/cli.h>
 #include <dsd-neo/runtime/exitflag.h>
+#include <dsd-neo/runtime/log.h>
+#include <dsd-neo/runtime/p25_time_ntp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "dsd-neo/core/opts_fwd.h"
 #include "dsd-neo/core/state_fwd.h"
 
 int
 main(int argc, char** argv) {
+    if (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) {
+        dsd_cli_usage();
+        return 0;
+    }
+
+    dsd_neo_log_set_level(LOG_LEVEL_ERROR);
+
     dsd_opts* opts = calloc(1, sizeof(dsd_opts));
     dsd_state* state = calloc(1, sizeof(dsd_state));
     if (!opts || !state) {
@@ -66,7 +77,14 @@ main(int argc, char** argv) {
         free(state);
         return exit_rc;
     }
+    if (dsd_p25_time_ntp_start(opts) != 0) {
+        freeState(state);
+        free(opts);
+        free(state);
+        return 1;
+    }
     int rc = dsd_engine_run(opts, state);
+    dsd_p25_time_ntp_stop();
     freeState(state);
     free(opts);
     free(state);

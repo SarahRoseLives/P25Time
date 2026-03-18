@@ -54,6 +54,27 @@ dsd_cli_compact_args(int argc, char** argv) {
             }
             continue;
         }
+        if (strcmp(arg, "--ntp-query") == 0) {
+            if (i + 1 < argc && argv[i + 1] != NULL && argv[i + 1][0] != '-') {
+                i++;
+            }
+            continue;
+        }
+        if (strncmp(arg, "--ntp-query=", 12) == 0) {
+            continue;
+        }
+        if (strcmp(arg, "--ntp-bind") == 0) {
+            if (i + 1 < argc && argv[i + 1] != NULL && argv[i + 1][0] != '-') {
+                i++;
+            }
+            continue;
+        }
+        if (strncmp(arg, "--ntp-bind=", 11) == 0) {
+            continue;
+        }
+        if (strcmp(arg, "--no-ntp") == 0) {
+            continue;
+        }
         if (strcmp(arg, "--rdio-mode") == 0) {
             if (i + 1 < argc) {
                 i++;

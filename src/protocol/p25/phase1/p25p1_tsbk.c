@@ -27,6 +27,8 @@
 #include <dsd-neo/protocol/p25/p25_trunk_sm.h>
 #include <dsd-neo/protocol/p25/p25_vpdu.h>
 #include <dsd-neo/runtime/colors.h>
+#include <dsd-neo/runtime/p25_time_ntp.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -217,7 +219,72 @@ processTSBK(dsd_opts* opts, dsd_state* state) {
     PDU[1] ^= 0x40; // flip to match MAC_PDU flavor (3D -> 7D)
 
     // Downstream handling on majority-decoded frame
-    if (MFID < 0x2 && protectbit == 0 && err == 0 && PDU[1] != 0x7B) {
+    if (MFID < 0x2 && protectbit == 0 && err == 0 && (tsbk_byte[0] & 0x3F) == 0x30) {
+        dsd_p25_sync_broadcast sync_broadcast;
+        if (dsd_p25_sync_broadcast_decode(tsbk_byte, &sync_broadcast)) {
+            state->p25_time_epoch_ns = sync_broadcast.unix_ns;
+            state->p25_time_monotonic_ns = sync_broadcast.monotonic_ns;
+            state->p25_time_local_offset_minutes = sync_broadcast.local_time_offset_minutes;
+            state->p25_time_microslots = sync_broadcast.microslots;
+            state->p25_time_year = sync_broadcast.year;
+            state->p25_time_month = sync_broadcast.month;
+            state->p25_time_day = sync_broadcast.day;
+            state->p25_time_hour = sync_broadcast.hour;
+            state->p25_time_minute = sync_broadcast.minute;
+            state->p25_time_valid = 1;
+            state->p25_time_system_unlocked = (uint8_t)sync_broadcast.system_time_not_locked;
+            state->p25_time_microslot_rollover_unlocked = (uint8_t)sync_broadcast.microslot_rollover_unlocked;
+            state->p25_time_lto_valid = (uint8_t)sync_broadcast.local_time_offset_valid;
+            state->p25_time_leap_second_correction = sync_broadcast.leap_second_correction;
+            dsd_p25_time_ntp_publish(&sync_broadcast);
+
+            if (opts->p25_time_mode) {
+                fprintf(stderr, "SYNC %04u-%02u-%02u %02u:%02u:%05.2f UTC", sync_broadcast.year,
+                        sync_broadcast.month, sync_broadcast.day, sync_broadcast.hour, sync_broadcast.minute,
+                        (double)sync_broadcast.microslots * 0.0075);
+                if (sync_broadcast.local_time_offset_valid) {
+                    fprintf(stderr, " LTO=%+d:%02d", sync_broadcast.local_time_offset_minutes / 60,
+                            abs(sync_broadcast.local_time_offset_minutes % 60));
+                }
+                if (sync_broadcast.system_time_not_locked) {
+                    fprintf(stderr, " UNLOCKED");
+                }
+                if (sync_broadcast.microslot_rollover_unlocked) {
+                    fprintf(stderr, " ROLLOVER_UNLOCKED");
+                }
+                if (sync_broadcast.leap_second_correction) {
+                    fprintf(stderr, " LEAP_MS=%.1f", (double)sync_broadcast.leap_second_correction * 2.5);
+                }
+                fprintf(stderr, "\n");
+                return;
+            }
+
+            fprintf(stderr, "%s", KYEL);
+            fprintf(stderr, "\n Synchronization Broadcast TSBK\n");
+            fprintf(stderr, "  UTC %04u-%02u-%02u %02u:%02u:%05.2f", sync_broadcast.year, sync_broadcast.month,
+                    sync_broadcast.day, sync_broadcast.hour, sync_broadcast.minute,
+                    (double)sync_broadcast.microslots * 0.0075);
+            if (sync_broadcast.local_time_offset_valid) {
+                fprintf(stderr, "  LTO %+d:%02d", sync_broadcast.local_time_offset_minutes / 60,
+                        abs(sync_broadcast.local_time_offset_minutes % 60));
+            }
+            if (sync_broadcast.system_time_not_locked) {
+                fprintf(stderr, "  [time unlock]");
+            }
+            if (sync_broadcast.microslot_rollover_unlocked) {
+                fprintf(stderr, "  [rollover unlock]");
+            }
+            if (sync_broadcast.leap_second_correction) {
+                fprintf(stderr, "  [leap +%.1f ms]", (double)sync_broadcast.leap_second_correction * 2.5);
+            }
+            fprintf(stderr, "\n");
+        }
+        if (opts->p25_time_mode) {
+            return;
+        }
+    } else if (opts->p25_time_mode) {
+        return;
+    } else if (MFID < 0x2 && protectbit == 0 && err == 0 && PDU[1] != 0x7B) {
         fprintf(stderr, "%s", KYEL);
         process_MAC_VPDU(opts, state, 0, PDU);
         fprintf(stderr, "%s", KNRM);

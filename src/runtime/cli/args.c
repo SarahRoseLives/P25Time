@@ -16,6 +16,7 @@
 #include <dsd-neo/runtime/config.h>
 #include <dsd-neo/runtime/decode_mode.h>
 #include <dsd-neo/runtime/log.h>
+#include <dsd-neo/runtime/p25_time_ntp.h>
 #include <dsd-neo/runtime/rdio_export.h>
 #include <errno.h>
 #include <stdint.h>
@@ -114,6 +115,114 @@ cli_parse_decimal_u32(const char* in, unsigned long* out) {
     return 1;
 }
 
+static int
+cli_parse_ntp_bind_spec(const char* spec, char* bindaddr, size_t bindaddr_cap, int* port_out) {
+    if (!spec || !bindaddr || bindaddr_cap == 0 || !port_out) {
+        return 0;
+    }
+
+    const char* port_spec = spec;
+    const char* split = strrchr(spec, ':');
+    if (split) {
+        size_t host_len = (size_t)(split - spec);
+        if (host_len == 0) {
+            if (bindaddr_cap < 2) {
+                return 0;
+            }
+            bindaddr[0] = '*';
+            bindaddr[1] = '\0';
+        } else {
+            if (host_len >= bindaddr_cap) {
+                return 0;
+            }
+            memcpy(bindaddr, spec, host_len);
+            bindaddr[host_len] = '\0';
+        }
+        port_spec = split + 1;
+    } else {
+        bindaddr[0] = '\0';
+    }
+
+    unsigned long parsed_port = 0;
+    if (!cli_parse_decimal_u32(port_spec, &parsed_port) || parsed_port > 65535UL) {
+        return 0;
+    }
+    if (parsed_port == 0) {
+        return 0;
+    }
+
+    *port_out = (int)parsed_port;
+    return 1;
+}
+
+static int
+cli_parse_ntp_query_spec(const char* spec, const dsd_opts* opts, char* host, size_t host_cap, int* port_out) {
+    if (!host || host_cap == 0 || !port_out || !opts) {
+        return 0;
+    }
+
+    const char* default_host = opts->ntp_bindaddr;
+    if (default_host[0] == '\0' || strcmp(default_host, "*") == 0 || strcmp(default_host, "0.0.0.0") == 0) {
+        default_host = "127.0.0.1";
+    }
+
+    snprintf(host, host_cap, "%s", default_host);
+    host[host_cap - 1] = '\0';
+    *port_out = opts->ntp_portno > 0 ? opts->ntp_portno : 1230;
+
+    if (!spec || spec[0] == '\0') {
+        return 1;
+    }
+
+    const char* split = strrchr(spec, ':');
+    if (split) {
+        size_t host_len = (size_t)(split - spec);
+        if (host_len > 0) {
+            if (host_len >= host_cap) {
+                return 0;
+            }
+            memcpy(host, spec, host_len);
+            host[host_len] = '\0';
+        }
+        unsigned long parsed_port = 0;
+        if (!cli_parse_decimal_u32(split + 1, &parsed_port) || parsed_port == 0 || parsed_port > 65535UL) {
+            return 0;
+        }
+        *port_out = (int)parsed_port;
+        return 1;
+    }
+
+    unsigned long parsed_port = 0;
+    if (cli_parse_decimal_u32(spec, &parsed_port) && parsed_port > 0 && parsed_port <= 65535UL) {
+        *port_out = (int)parsed_port;
+        return 1;
+    }
+
+    snprintf(host, host_cap, "%s", spec);
+    host[host_cap - 1] = '\0';
+    return 1;
+}
+
+static void
+cli_print_unix_ns_utc(uint64_t unix_ns) {
+    if (unix_ns == 0) {
+        printf("n/a");
+        return;
+    }
+
+    time_t seconds = (time_t)(unix_ns / 1000000000ULL);
+    uint32_t millis = (uint32_t)((unix_ns % 1000000000ULL) / 1000000ULL);
+    struct tm tm_utc;
+#if DSD_PLATFORM_WIN_NATIVE
+    gmtime_s(&tm_utc, &seconds);
+#else
+    gmtime_r(&seconds, &tm_utc);
+#endif
+    char buf[64];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm_utc);
+    printf("%s.%03u UTC", buf, millis);
+}
+
 // Parse long-style options and environment mapping; also supports the
 // one-shot LCN calculator. Short-option parsing has been migrated here
 // to centralize all CLI handling in runtime.
@@ -129,6 +238,8 @@ dsd_parse_args(int argc, char** argv, dsd_opts* opts, dsd_state* state, int* out
     const char* calc_ccf_cli = NULL;
     const char* calc_ccl_cli = NULL;
     const char* calc_start_cli = NULL;
+    const char* ntp_query_cli = NULL;
+    int ntp_query_requested = 0;
     const char* input_vol_cli = NULL;
     const char* input_warn_db_cli = NULL;
     const char* frame_log_cli = NULL;
@@ -311,6 +422,47 @@ dsd_parse_args(int argc, char** argv, dsd_opts* opts, dsd_state* state, int* out
             frame_log_cli = argv[++i];
             continue;
         }
+        if (strcmp(argv[i], "--ntp-query") == 0) {
+            ntp_query_requested = 1;
+            if (i + 1 < argc && argv[i + 1] != NULL && argv[i + 1][0] != '-') {
+                ntp_query_cli = argv[++i];
+            }
+            continue;
+        }
+        if (strncmp(argv[i], "--ntp-query=", 12) == 0) {
+            ntp_query_requested = 1;
+            ntp_query_cli = argv[i] + 12;
+            continue;
+        }
+        if (strcmp(argv[i], "--ntp-bind") == 0) {
+            if (i + 1 >= argc) {
+                LOG_ERROR("--ntp-bind requires [host:]port\n");
+                cli_set_exit_rc(out_exit_rc, 1);
+                return DSD_PARSE_ERROR;
+            }
+            if (!cli_parse_ntp_bind_spec(argv[i + 1], opts->ntp_bindaddr, sizeof opts->ntp_bindaddr, &opts->ntp_portno)) {
+                LOG_ERROR("Invalid --ntp-bind value \"%s\" (expected [host:]port)\n", argv[i + 1]);
+                cli_set_exit_rc(out_exit_rc, 1);
+                return DSD_PARSE_ERROR;
+            }
+            opts->ntp_enable = 1;
+            i++;
+            continue;
+        }
+        if (strncmp(argv[i], "--ntp-bind=", 11) == 0) {
+            const char* spec = argv[i] + 11;
+            if (!cli_parse_ntp_bind_spec(spec, opts->ntp_bindaddr, sizeof opts->ntp_bindaddr, &opts->ntp_portno)) {
+                LOG_ERROR("Invalid --ntp-bind value \"%s\" (expected [host:]port)\n", spec);
+                cli_set_exit_rc(out_exit_rc, 1);
+                return DSD_PARSE_ERROR;
+            }
+            opts->ntp_enable = 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--no-ntp") == 0) {
+            opts->ntp_enable = 0;
+            continue;
+        }
         if (strcmp(argv[i], "--rdio-mode") == 0 && i + 1 < argc) {
             rdio_mode_cli = argv[++i];
             continue;
@@ -428,6 +580,39 @@ dsd_parse_args(int argc, char** argv, dsd_opts* opts, dsd_state* state, int* out
         return DSD_PARSE_ONE_SHOT;
     }
 
+    if (ntp_query_requested) {
+        char host[1024];
+        int port = 0;
+        if (!cli_parse_ntp_query_spec(ntp_query_cli, opts, host, sizeof(host), &port)) {
+            LOG_ERROR("Invalid --ntp-query value \"%s\"\n", ntp_query_cli ? ntp_query_cli : "");
+            cli_set_exit_rc(out_exit_rc, 1);
+            return DSD_PARSE_ERROR;
+        }
+        dsd_ntp_query_result result;
+        if (dsd_p25_time_ntp_query(host, port, &result) != 0) {
+            LOG_ERROR("Failed to query NTP server %s:%d\n", host, port);
+            cli_set_exit_rc(out_exit_rc, 1);
+            return DSD_PARSE_ERROR;
+        }
+        printf("NTP server: %s:%d\n", host, port);
+        printf("stratum: %u\n", result.stratum);
+        printf("leap: %u\n", result.leap_indicator);
+        printf("version: %u\n", result.version);
+        printf("mode: %u\n", result.mode);
+        printf("refid: %s\n", result.refid);
+        printf("reference time: ");
+        cli_print_unix_ns_utc(result.reference_unix_ns);
+        printf("\nreceive time: ");
+        cli_print_unix_ns_utc(result.receive_unix_ns);
+        printf("\ntransmit time: ");
+        cli_print_unix_ns_utc(result.transmit_unix_ns);
+        printf("\nstatus: %s\n",
+               (result.stratum > 0 && result.stratum < 16 && result.leap_indicator != 3) ? "synchronized"
+                                                                                           : "unsynchronized");
+        cli_set_exit_rc(out_exit_rc, 0);
+        return DSD_PARSE_ONE_SHOT;
+    }
+
     // Environment fallback
     if (cfg && cfg->dmr_t3_calc_csv_is_set && cfg->dmr_t3_calc_csv[0] != '\0') {
         int rc = dsd_cli_calc_dmr_t3_lcn_from_csv(cfg->dmr_t3_calc_csv);
@@ -488,6 +673,11 @@ dsd_parse_args(int argc, char** argv, dsd_opts* opts, dsd_state* state, int* out
         opts->frame_log_write_error_reported = 0;
         dsd_frame_log_close(opts);
         LOG_NOTICE("Frame log file: %s\n", opts->frame_log_file);
+    }
+    if (opts->ntp_enable) {
+        LOG_NOTICE("P25Time NTP bind: %s:%d\n", opts->ntp_bindaddr[0] ? opts->ntp_bindaddr : "0.0.0.0", opts->ntp_portno);
+    } else {
+        LOG_NOTICE("P25Time NTP responder disabled\n");
     }
 
     if (rdio_mode_cli) {

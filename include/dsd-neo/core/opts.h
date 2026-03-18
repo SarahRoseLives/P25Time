@@ -239,6 +239,9 @@ struct dsd_opts {
     int rtltcp_enabled;  // 1 when using rtl_tcp backend
     int rtltcp_portno;   // default 1234
     int rtltcp_autotune; // 1 to enable rtl_tcp network auto-tuning (adaptive buffering)
+    int ntp_enable;      // 1 when embedded NTP responder should run
+    int ntp_portno;      // UDP port for embedded NTP responder
+    int p25_time_mode;   // appliance mode: minimize output and focus on sync broadcasts
     int wav_sample_rate;
     int wav_interpolator;
     int wav_decimator;
@@ -306,6 +309,7 @@ struct dsd_opts {
     char m17_hostname[1024];
     char tcp_hostname[1024];
     char rtltcp_hostname[1024];
+    char ntp_bindaddr[1024];
     char group_in_file[1024];
     char lcn_in_file[1024];
     char chan_in_file[1024];

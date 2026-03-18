@@ -87,6 +87,47 @@ test_frame_log_consumes_path_and_leaves_short_opts(void) {
 }
 
 static int
+test_ntp_long_opts_are_removed(void) {
+    char arg0[] = "dsd-neo";
+    char arg1[] = "--ntp-bind";
+    char arg2[] = "127.0.0.1:1230";
+    char arg3[] = "--no-ntp";
+    char arg4[] = "-fi";
+    char* argv[] = {arg0, arg1, arg2, arg3, arg4, NULL};
+
+    int new_argc = dsd_cli_compact_args(5, argv);
+    if (new_argc != 2) {
+        fprintf(stderr, "expected new_argc=2, got %d\n", new_argc);
+        return 1;
+    }
+    if (argv[1] == NULL || strcmp(argv[1], "-fi") != 0) {
+        fprintf(stderr, "expected argv[1] to be \"-fi\", got \"%s\"\n", argv[1] ? argv[1] : "(null)");
+        return 1;
+    }
+    return 0;
+}
+
+static int
+test_ntp_query_long_opt_is_removed(void) {
+    char arg0[] = "dsd-neo";
+    char arg1[] = "--ntp-query";
+    char arg2[] = "127.0.0.1:1230";
+    char arg3[] = "-fi";
+    char* argv[] = {arg0, arg1, arg2, arg3, NULL};
+
+    int new_argc = dsd_cli_compact_args(4, argv);
+    if (new_argc != 2) {
+        fprintf(stderr, "expected new_argc=2, got %d\n", new_argc);
+        return 1;
+    }
+    if (argv[1] == NULL || strcmp(argv[1], "-fi") != 0) {
+        fprintf(stderr, "expected argv[1] to be \"-fi\", got \"%s\"\n", argv[1] ? argv[1] : "(null)");
+        return 1;
+    }
+    return 0;
+}
+
+static int
 test_vendor_privacy_long_opts_are_removed(void) {
     char arg0[] = "dsd-neo";
     char arg1[] = "--dmr-baofeng-pc5";
@@ -155,6 +196,8 @@ main(void) {
     rc |= test_config_with_path_consumes_only_path();
     rc |= test_config_equals_form_is_removed();
     rc |= test_frame_log_consumes_path_and_leaves_short_opts();
+    rc |= test_ntp_long_opts_are_removed();
+    rc |= test_ntp_query_long_opt_is_removed();
     rc |= test_vendor_privacy_long_opts_are_removed();
     rc |= test_rtl_udp_control_consumes_port_and_leaves_short_opts();
     rc |= test_rtl_udp_control_missing_port_does_not_consume_next_option();

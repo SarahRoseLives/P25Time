@@ -16,6 +16,7 @@ target_sources(dsd-neo_runtime PRIVATE
   frame_sync_hooks.c
   trunk_tuning_hooks.c
   trunk_cc_candidates.c
+  p25_time_ntp.c
   rtl_stream_io_hooks.c
   rtl_stream_metrics_hooks.c
   m17_udp_hooks.c
